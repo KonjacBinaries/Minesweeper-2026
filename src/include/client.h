@@ -120,10 +120,24 @@ void Decide() {
       (1)Execute一下pos（进行visit）
       (2)Update_map();
     4.void Cooperate(int pos, int pos')
+      首先，求出pos和pos'的un_block_pos[8]的交集N，并且得到它们分别对N取差集以后的集合A B
+      也就是说，A仅仅属于pos，B仅仅属于pos'，N同时属于A和B
       (1)差集合作
-
+        因为(A + N)中有un_bomb个雷，(B + N)中有un_bomb'个雷，
+        所以A - B中有un_bomb - un_bomb'个雷
+        显然A - B最大可以取到|A|，最小可以取到-|B|
+        所以，
+          如果un_bomb - un_bomb' = |A|，那么对A中的所有点打包成(pos, markmine)然后push_into_op_queue，对B中的所有点打包成(pos, visit)然后push_into_op_queue
+          如果un_bomb - un_bomb' = -|B|，那么对B中的所有点打包成(pos, markmine)然后push_into_op_queue，对A中的所有点打包成(pos, visit)然后push_into_op_queue
+        这样一来，像1 2 1，1 2 2 1之类的就都秒了
       (2)交集合作
-        
+        直接枚举N中塞多少个雷，并使用un_bomb和un_bomb'来判断A和B中有多少雷
+        如果无解，取消交集合作
+        如果有多个解，也取消交集合作
+        如果有唯一解，但是唯一解没有填满或置空A、N、B中的任何一个，仍然取消交集合作
+        把A、N、B中，被填满或被置空的集合中的点打包成(pos, markmine)或打包成(pos, visit)然后push_into_op_queue
+        这样一来，像 1 4，2 5之类的就都秒了
+      return;
   五、狗急跳墙组
     1.void Gaussian_elimination() 逼急了可以用
     2.void Random() 如果发现gaussian的规模过大，就直接random
