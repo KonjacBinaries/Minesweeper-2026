@@ -103,12 +103,14 @@ void Decide() {
       (4)用新map覆盖原map
   三、queue维护组
     1.void push_into_pos_queue(int pos)
-      试图将pos加入到待处理队列pos_queue中，维护一个in_queue[]数组判断pos是不是已经在队里了
-      如果pos的in_map(pos) == false或in_queue[pos] == true或is_open == false或is_bomb == true或is_done == yes，那么驳回请求
-      否则，把pos push到pos_queue里，标记in_queue[pos] = true;
+      试图将pos加入到待处理队列pos_queue中，维护一个in_pos_queue[]数组判断pos是不是已经在队里了
+      如果pos的in_map(pos) == false或in_pos_queue[pos] == true或is_open == false或is_bomb == true或is_done == yes，那么驳回请求
+      否则，把pos push到pos_queue里，标记in_pos_queue[pos] = true;
     2.int get_front_pos(int pos)
       如果pos_queue为空，返回-1
-      否则，返回pos_queue.front()，弹出队列，标记in_queue[pos] = false
+      否则，返回pos_queue.front()，弹出队列，标记in_pos_queue[pos] = false
+    3.push_into_op_queue
+      把操作加入op_queue，等待执行
   四、操作执行组
     1.void Explore(int pos) 任务是，explore pos，然后处理地图变动（维护好pos_queue）
       (1)Execute一下pos（进行explore）
