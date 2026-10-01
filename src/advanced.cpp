@@ -15,6 +15,7 @@ bool batch_mode = false;
  * @details Use it only when trying advanced task. Do NOT modify it before discussing with TA.
  */
 void Execute(int row, int column, int type) {
+  std::cout << "Executing:" << row << ',' << column <<" --- " << type << std::endl;
   std::string str;
   if (type == 0) {
     VisitBlock(row, column);
@@ -27,7 +28,7 @@ void Execute(int row, int column, int type) {
     exit(-1);
   }
   if (game_state != 0) {
-    // PrintMap(); // this line may help you debug
+    PrintMap(); // this line may help you debug
     ExitGame();
     if (batch_mode) {
       return;
@@ -47,8 +48,8 @@ void Execute(int row, int column, int type) {
   std::cin.rdbuf(iss.rdbuf());
   ReadMap();
   std::cin.rdbuf(old_input_buffer);
-  // PrintMap(); // These two lines may help you debug
-  // std::cout << std::endl;
+  PrintMap(); // These two lines may help you debug
+  std::cout << std::endl;
 }
 
 /**
