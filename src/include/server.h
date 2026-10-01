@@ -3,6 +3,8 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <queue>
+#include <utility>
 
 /*
  * You may need to define some global variables for the information of the game map here.
@@ -10,6 +12,14 @@
  * class is not taught yet. However, if you are member of A-class or have learnt the use of cpp class, member functions,
  * etc., you're free to modify this structure.
  */
+const int dx[8] = {-1, -1, -1,  0,  0,  1,  1,  1}; //8 directions.
+const int dy[8] = {-1,  0,  1, -1,  1, -1,  0,  1}; //8 directions.
+char actual_state[35][35]; // actual map
+char output_state[35][35]; // map for output
+int normal_blocks; // The count of normal blocks.
+int correctly_visited_normal_blocks; // The count of normal blocks that have been visited correctly.
+int correctly_marked_mines; //The count of mines that are correctly marked.
+std::queue<std::pair<int, int> > position_queue;
 int rows;         // The count of rows of the game map. You MUST NOT modify its name.
 int columns;      // The count of columns of the game map. You MUST NOT modify its name.
 int total_mines;  // The count of mines of the game map. You MUST NOT modify its name. You should initialize this
@@ -28,9 +38,39 @@ int game_state;  // The state of the game, 0 for continuing, 1 for winning, -1 f
  * where X stands for a mine block and . stands for a normal block. After executing this function, your game map
  * would be initialized, with all the blocks unvisited.
  */
+bool IsInMap(int x, int y) {
+  return (0 <= x && x < rows) && (0 <= y && y < columns);
+}
 void InitMap() {
   std::cin >> rows >> columns;
-  // TODO (student): Implement me!
+  game_state = 0;
+  total_mines = 0;
+  correctly_marked_mines = 0;
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      std::cin >> actual_state[i][j];
+      output_state[i][j] = '?';
+      if (actual_state[i][j] == 'X') {
+        ++total_mines;
+      }
+    }
+  }
+  normal_blocks = rows * columns - total_mines;
+  correctly_visited_normal_blocks = 0;
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      if (actual_state[i][j] == 'X') {
+        continue;
+      }
+      actual_state[i][j] = '0';
+      for (int delta = 0; delta < 8; ++delta) {
+        int new_x = i + dx[delta], new_y = j + dy[delta];
+        if (!IsInMap(new_x, new_y)) continue;
+        actual_state[i][j] += (actual_state[new_x][new_y] == 'X');
+      }
+    }
+  }
+  return;
 }
 
 /**
@@ -64,7 +104,39 @@ void InitMap() {
  * @note For invalid operation, you should not do anything.
  */
 void VisitBlock(int r, int c) {
-  // TODO (student): Implement me!
+  if (output_state[r][c] != '?') {
+    return;
+  } // 已经访问过了
+  // 现在，(r, c)只能是'?'
+  while (position_queue.size()) position_queue.pop();
+  position_queue.push(std::make_pair(r, c));
+  while (position_queue.size()) {
+    std::pair<int, int> temp = position_queue.front();
+    position_queue.pop();
+    int pos_x = temp.first, pos_y = temp.second;
+    if (output_state[pos_x][pos_y] != '?') continue;
+    output_state[pos_x][pos_y] = actual_state[pos_x][pos_y];
+    if (output_state[pos_x][pos_y] == 'X') {
+      game_state = -1;
+      return;
+    } // 踩雷
+    ++correctly_visited_normal_blocks; //多访问了一个
+    if (correctly_visited_normal_blocks == normal_blocks) {
+      correctly_marked_mines = total_mines;
+      game_state = 1;
+      return;
+    } // 获胜
+    // 现在，既没有踩雷，也没有获胜，游戏继续
+    if (output_state[pos_x][pos_y] != '0') {
+      continue;
+    } // 只有0才会触发继续探索
+    for (int dlt = 0; dlt < 8; ++dlt) {
+      int new_x = pos_x + dx[dlt], new_y = pos_y + dy[dlt];
+      if ((!IsInMap(new_x, new_y)) || (output_state[new_x][new_y] != '?')) continue;
+      position_queue.push(std::make_pair(new_x, new_y));
+    }
+  }
+  return;
 }
 
 /**
@@ -101,7 +173,15 @@ void VisitBlock(int r, int c) {
  * @note For invalid operation, you should not do anything.
  */
 void MarkMine(int r, int c) {
-  // TODO (student): Implement me!
+  if (output_state[r][c] != '?') return;
+  if (actual_state[r][c] != 'X') {
+    game_state = -1;
+    output_state[r][c] = 'X';
+    return;
+  }
+  ++correctly_marked_mines;
+  output_state[r][c] = '@';
+  return;
 }
 
 /**
@@ -121,7 +201,37 @@ void MarkMine(int r, int c) {
  * And the game ends (and player wins).
  */
 void AutoExplore(int r, int c) {
-  // TODO (student): Implement me!
+  if ((output_state[r][c] == '?') || (output_state[r][c] == '@')) return; // 只有数字才能explore
+  while (position_queue.size()) position_queue.pop();
+  for (int delta = 0; delta < 8; ++delta) {
+    int new_x = r + dx[delta], new_y = c + dy[delta];
+    if (!IsInMap(new_x, new_y)) continue;
+    if ((actual_state[new_x][new_y] == 'X') && (output_state[new_x][new_y] != '@')) return; // 没有全部标记，拒绝操作
+    if (output_state[new_x][new_y] == '?') position_queue.push(std::make_pair(new_x, new_y));
+  }
+  while (position_queue.size()) {
+    std::pair<int, int> temp = position_queue.front();
+    position_queue.pop();
+    int pos_x = temp.first, pos_y = temp.second;
+    if (output_state[pos_x][pos_y] != '?') continue;
+    output_state[pos_x][pos_y] = actual_state[pos_x][pos_y];
+    ++correctly_visited_normal_blocks; //多访问了一个
+    if (correctly_visited_normal_blocks == normal_blocks) {
+      game_state = 1;
+      correctly_marked_mines = total_mines;
+      return;
+    } // 获胜
+    // 现在，既没有踩雷，也没有获胜，游戏继续
+    if (output_state[pos_x][pos_y] != '0') {
+      continue;
+    } // 只有0才会触发继续探索
+    for (int delta = 0; delta < 8; ++delta) {
+      int new_x = pos_x + dx[delta], new_y = pos_y + dy[delta];
+      if ((!IsInMap(new_x, new_y)) || (output_state[new_x][new_y] != '?')) continue;
+      position_queue.push(std::make_pair(new_x, new_y));
+    }
+  }
+  return;
 }
 
 /**
@@ -134,7 +244,14 @@ void AutoExplore(int r, int c) {
  * @note If the player wins, we consider that ALL mines are correctly marked.
  */
 void ExitGame() {
-  // TODO (student): Implement me!
+  if (game_state == 1) {
+    std::cout << "YOU WIN!\n";
+    std::cout << correctly_visited_normal_blocks << ' ' << correctly_marked_mines << '\n';
+  }
+  else {
+    std::cout << "GAME OVER!\n";
+    std::cout << correctly_visited_normal_blocks << ' ' << correctly_marked_mines << '\n';
+  }
   exit(0);  // Exit the game immediately
 }
 
@@ -163,7 +280,14 @@ void ExitGame() {
  * @note Use std::cout to print the game map, especially when you want to try the advanced task!!!
  */
 void PrintMap() {
-  // TODO (student): Implement me!
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      if (game_state == 1 && output_state[i][j] == '?') std::cout << '@';
+      else std::cout << output_state[i][j];
+    }
+    std::cout << std::endl;
+  }
+  return;
 }
 
 #endif
