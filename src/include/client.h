@@ -18,6 +18,8 @@ const int MARKMINE(1);
 const int AUTOEXPLORE(2);
 const int MAXEDGELENGTH(35);
 const int MAXLENGTH(MAXEDGELENGTH * MAXEDGELENGTH);
+int unknown_blocks;
+int unknown_mines;
 std::mt19937 mt_rand(time(0));
 
 // You MUST NOT use any other external variables except for rows, columns and total_mines.
@@ -128,6 +130,8 @@ void InitGame() {
   srand(time(0));
   while(op_queue.size()) op_queue.pop();
   while(pos_queue.size()) pos_queue.pop();
+  unknown_blocks = rows * columns;
+  unknown_mines = total_mines;
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
       int pos = Block::encode(i, j);
@@ -168,6 +172,8 @@ void ReadMap() {
       if (new_map == '@') {
         block_status[pos].is_open_ = true;
         block_status[pos].is_mine_ = true;
+        --unknown_blocks;
+        --unknown_mines;
         for (int dlt = 0; dlt < DELTA_FIVE; ++dlt) {
           int nx = i + delta_x[dlt], ny = j + delta_y[dlt];
           if (!is_in_map(nx, ny)) continue;
@@ -175,6 +181,7 @@ void ReadMap() {
         }
       } // 新标的雷
       else {
+        --unknown_blocks;
         block_status[pos].is_open_ = true;
         block_status[pos].is_mine_ = false;
         block_status[pos].is_done_ = false;
@@ -292,6 +299,7 @@ void UpdatePosition(int pos) {
   tmp.is_open_ = block_status[pos].is_open_;
   Pii position = Block::decode(pos);
   int px = position.first, py = position.second;
+  if (client_map[px][py] < '0' || client_map[px][py] > '9') return;
   tmp.un_mine_ = client_map[px][py] - '0';
   tmp.un_block_cnt_ = 0;
   for (int dlt = 0; dlt < DELTA_THREE; ++dlt){
@@ -342,7 +350,7 @@ void Analyze(int pos) {
     int nx = px + delta_x[dlt], ny = py + delta_y[dlt];
     if (!is_in_map(nx, ny)) continue;
     int npos = Block::encode(nx, ny);
-    if (block_status[pos].is_omd()) continue;
+    if (block_status[npos].is_omd()) continue;
     // 只需要和已经打开的、不是雷的、还存在待定位置的点合作
     UpdatePosition(npos);
     // 特别注意：ReadMap以后，新开的点的信息尚未更新（仍然处于原初状态），所以和新点合作的时候，务必先update它的信息
@@ -445,6 +453,7 @@ Equation operator*(double val, Equation equ) {
 
 int find_pivot[MAXLENGTH]; //全局公用，用来查询pos对应的元的编号
 const int MAXCOST(1 << 20);
+int mine_count;
 class Matrix{
   private:
     std::vector<Equation> equation_;
@@ -520,6 +529,7 @@ class Matrix{
       return;
     } // 建立增广矩阵
     void Calculate(int depth) {
+      if (mine_count > unknown_mines) return;
       ++cost_;
       if (cost_ > MAXCOST) return; // 开销过大，强制终止
       if (depth >= pivot_count_) {
@@ -571,9 +581,11 @@ class Matrix{
         return true;
       };
       if (verified_[now] != -1) {
+        if (store_[now] == 1) ++mine_count;
         if (change_val(store_[now], false)) {
           Calculate(depth + 1); // 计算下一层
         } // 将now在方程里正式赋值，发现赋完值以后没有出现矛盾
+        if (store_[now] == 1) --mine_count;
         change_val(store_[now], true);
       } // 值已经被确定了。此时now应该还没有在方程里正式地赋值
       else {
@@ -585,7 +597,9 @@ class Matrix{
         change_val(store_[now], true);
         // try 1
         if (change_val(store_[now] = 1, false)) {
+          ++mine_count;
           Calculate(depth + 1); // 计算下一层
+          --mine_count;
         } // 将now在方程里赋为1，发现赋完值以后没有出现矛盾
         change_val(store_[now], true);
         verified_[now] = -1;
@@ -659,6 +673,7 @@ class Matrix{
       }
       SetUpMatrix();
       GaussianJordan();
+      mine_count = 0;
       Calculate(0);
       return;
     }
@@ -746,6 +761,27 @@ void Decide() {
       Pii pos = Block::decode(res.pos_);
       Execute(pos.first, pos.second, res.type_);
       return;
+    }
+    if (!unknown_blocks) continue;
+    if (unknown_blocks == unknown_mines) {
+      for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < columns; ++j) {
+          if (client_map[i][j] != '?') continue;
+          int pos = Block::encode(i, j);
+          push_into_op_queue(pos, MARKMINE);
+        }
+      }
+      continue;
+    }
+    if (unknown_mines == 0) {
+      for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < columns; ++j) {
+          if (client_map[i][j] != '?') continue;
+          int pos = Block::encode(i, j);
+          push_into_op_queue(pos, VISIT);
+        }
+      }
+      continue;
     }
     int fpos = get_front_pos();
     if (fpos == -1) {
