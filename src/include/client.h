@@ -360,7 +360,7 @@ void Analyze(int pos) {
   return;
 }
 
-const double eps(1e-11);
+const double eps(1e-13);
 double double_abs(double val) {
   return (val < 0) ? -val : val;
 }
@@ -452,7 +452,7 @@ Equation operator*(double val, Equation equ) {
 }
 
 int find_pivot[MAXLENGTH]; //全局公用，用来查询pos对应的元的编号
-const int MAXCOST(1 << 20);
+int MAXCOST;
 int mine_count;
 class Matrix{
   private:
@@ -475,28 +475,6 @@ class Matrix{
     int solution_count_; // 探到的解计数
     int pivot_count_; // 有多少个pivot，用来分配元的编号
     int cost_; // 探测开销
-    void Clear() {
-      pivot_count_ = 0;
-      solution_count_ = 0;
-      cost_ = 0;
-      equation_.clear();
-      main_equation_.clear();
-      node_set_.clear();
-      value_of_pivot_.clear();
-      enumeration_order_.clear();
-      free_pivot_.clear();
-      store_.clear();
-      zero_count_.clear();
-      one_count_.clear();
-      contain_pivot_.clear();
-      verified_.clear();
-      return;
-    }
-    void AddNode(int pos) {
-      if (block_status[pos].is_omd() || (block_status[pos].un_block_cnt_ == 0)) return;
-      node_set_.push_back(pos);
-      return;
-    }
     void SetUpMatrix() {
       for (auto i : node_set_) {
         for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
@@ -513,7 +491,7 @@ class Matrix{
             int new_pivot = pivot_count_++;
             find_pivot[this_one] = new_pivot;
             main_equation_.push_back(-1);
-            value_of_pivot_.push_back(-114514.0); // 默认优先级
+            value_of_pivot_.push_back(-1000000.0); // 默认优先级
             enumeration_order_.push_back(new_pivot);
             store_.push_back(-1.0);
             one_count_.push_back(0);
@@ -654,23 +632,46 @@ class Matrix{
       }
 
       //以下，计算自由元的枚举优先级
-      for (auto frp : free_pivot_) {
-        double value = contain_pivot_[frp].size() * 1.0;
+      for (int pivot = 0; pivot < pivot_count_; ++pivot) {
+        if (main_equation_[pivot] == -1) {
+          double value = contain_pivot_[pivot].size() * 1.0;
 
-        // 先随便给个值吧，待会再修饰
+          // 先随便给个值吧，待会再修饰
 
-        value_of_pivot_[frp] = value;
+          value_of_pivot_[pivot] += value;
+        }
+        else {
+          value_of_pivot_[pivot] += contain_pivot_[pivot].size() * 1.0;
+        }
       }
-      sort(enumeration_order_.begin(), enumeration_order_.end(), [&](int a, int b)->bool {return value_of_pivot_[a] > value_of_pivot_[b]; } );
+      sort(enumeration_order_.begin(), enumeration_order_.end(), [&](int a, int b)->bool { return value_of_pivot_[a] > value_of_pivot_[b]; } );
       // 这样一来，所有的能消的就都消了，自由元也都存好了（都在前面，且已按权重排序）
       return;
     } // 消元
   public:
-    void SetUp(std::vector<int> blocks) {
-      Clear();
-      for (auto i : blocks) {
-        AddNode(i);
-      }
+    void Clear() {
+      pivot_count_ = 0;
+      solution_count_ = 0;
+      cost_ = 0;
+      equation_.clear();
+      main_equation_.clear();
+      node_set_.clear();
+      value_of_pivot_.clear();
+      enumeration_order_.clear();
+      free_pivot_.clear();
+      store_.clear();
+      zero_count_.clear();
+      one_count_.clear();
+      contain_pivot_.clear();
+      verified_.clear();
+      return;
+    }
+    void AddNode(int pos) {
+      if (block_status[pos].is_omd() || (block_status[pos].un_block_cnt_ == 0)) return;
+      node_set_.push_back(pos);
+      return;
+    }
+    void SetUp() {
       SetUpMatrix();
       GaussianJordan();
       mine_count = 0;
@@ -716,32 +717,131 @@ class Matrix{
       push_into_op_queue(pos, typ);
       return true;
     }
-};
-Matrix Trial;
-std::vector<int> trial;
+}temporary;
+int father[MAXLENGTH];
+bool is_connected(int A, int B) {
+  for (int i = 0; i < block_status[A].un_block_cnt_; ++i) {
+    for (int j = 0; j < block_status[B].un_block_cnt_; ++j) {
+      if (block_status[A].un_block_pos_[i] == block_status[B].un_block_pos_[j]) return true;
+    }
+  }
+  return false;
+}
+int get_father(int pos) {
+  if (pos == father[pos]) return pos;
+  return father[pos] = get_father(father[pos]);
+}
+int matrix_count;
+int find_number[MAXLENGTH];
+std::vector<Matrix> Gauss;
+Matrix Global;
+std::vector<int> global;
 bool GaussianElimination() {
-  trial.clear();
+  // 以下是初始化
+  MAXCOST = (1 << 20);
+  matrix_count = 0;
+  Gauss.clear();
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
       int pos = Block::encode(i, j);
       UpdatePosition(pos);
-      // std::cout << i << " " << j << " " << block_status[pos].is_omd() << " " << block_status[pos].un_block_cnt_ << std::endl;
-      if ((!block_status[pos].is_omd()) && block_status[pos].un_block_cnt_ > 0)
-        trial.push_back(pos);
+      if ((block_status[pos].is_omd()) || (block_status[pos].un_block_cnt_ == 0)) continue;
+      father[pos] = pos;
     }
   }
-  if (!trial.size()) return false;
-  Trial.SetUp(trial);
-  if(Trial.PushOperation()) return true;
-  if(Trial.RecommendOperation()) return true;
+  // 以下是并查集合并节点
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      int pos = Block::encode(i, j);
+      if ((block_status[pos].is_omd()) || (block_status[pos].un_block_cnt_ == 0)) continue;
+      for (int dlt = 0; dlt < DELTA_FIVE; ++dlt) {
+        int nx = i + delta_x[dlt] ,ny = j + delta_y[dlt];
+        if (!is_in_map(nx, ny)) continue;
+        int npos = Block::encode(nx, ny);
+        if ((block_status[npos].is_omd()) || (block_status[npos].un_block_cnt_ == 0)) continue;
+        if (is_connected(pos, npos)) {
+          int fapos = get_father(father[pos]), fanpos = get_father(father[npos]);
+          father[fanpos] = fapos;
+        }
+      }
+    }
+  }
+  // 以下是给连通块编号
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      int pos = Block::encode(i, j);
+      if ((block_status[pos].is_omd()) || (block_status[pos].un_block_cnt_ == 0)) continue;
+      father[pos] = get_father(pos);
+      if (pos == father[pos]) {
+        find_number[pos] = matrix_count++;
+        Gauss.push_back(temporary);
+        Gauss[matrix_count - 1].Clear();
+      }
+    }
+  }
+  // 以下是构建每一组高斯消元
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      int pos = Block::encode(i, j);
+      if ((block_status[pos].is_omd()) || (block_status[pos].un_block_cnt_ == 0)) continue;
+      Gauss[find_number[father[pos]]].AddNode(pos);
+    }
+  }
+  // 以下是处理每一组高斯消元
+  for (int i = 0; i <matrix_count; ++i) {
+    Gauss[i].SetUp();
+  }
+  // 以下是试图处理有唯一解的情况
+  int singular_count = 0;
+  for (int i = 0; i < matrix_count; ++i) {
+    singular_count += Gauss[i].PushOperation();
+  }
+  if (singular_count) return true;
+
+  MAXCOST = (1 << 17);
+  global.clear();
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      int pos = Block::encode(i, j);
+      UpdatePosition(pos);
+      if ((!block_status[pos].is_omd()) && block_status[pos].un_block_cnt_ > 0)
+        global.push_back(pos);
+    }
+  }
+  if (!global.size()) return false;
+  Global.Clear();
+  for (auto i : global) Global.AddNode(i);
+  Global.SetUp();
+  if(Global.PushOperation()) return true;
+  if(Global.RecommendOperation()) return true;
   return false;
 }
 void Ramdomize() {
-  for (int i = 0; i < rows; ++i) {
-    for (int j = 0; j < columns; ++j) {
-      if (client_map[i][j] == '?') {
-        push_into_op_queue(Block::encode(i, j), VISIT);
-        return;
+  for (int range = 3; range >= 0; --range) {
+    for (int i = 0; i < rows; ++i) {
+      for (int j = 0; j < columns; ++j) {
+        bool flag = true;
+        if (client_map[i][j] != '?') {
+          continue;
+        }
+        for (int i_ = i - range; i_ <= i + range; ++i_) {
+          for (int j_ = j - range; j_ <= j + range; ++j_) {
+            if (!is_in_map(i_, j_)) {
+              continue;
+            }
+            if ((i_ == i) && (j_ == j)) {
+              continue;
+            }
+            if (client_map[i_][j_] != '?') {
+              flag = false;
+              break;
+            }
+          }
+        }
+        if (flag) {
+          push_into_op_queue(Block::encode(i, j), unknown_mines * 2 > unknown_blocks);
+          return;
+        }
       }
     }
   }
