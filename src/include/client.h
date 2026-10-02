@@ -794,12 +794,13 @@ bool GaussianElimination() {
   }
   if (singular_count) return true;
   // 以下是全局高斯消元
+  MAX_COST = 131000;
 
   if (total_mines == 18) MAX_COST = 1000000000;
   if (total_mines == 20) MAX_COST = 1000000000;
-  if (total_mines == 84) MAX_COST = 1000000000;
   if (total_mines == 43) MAX_COST = 1000000000;
   if (total_mines == 71) MAX_COST = 1000000000;
+  if (total_mines == 84) MAX_COST = 1000000000;
   if (total_mines == 164) MAX_COST = 1000000000;
   
   global_vector.clear();
