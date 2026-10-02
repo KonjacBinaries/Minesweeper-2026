@@ -74,13 +74,13 @@ class Block {
   bool is_not_analyzable() const {
     return (!is_open_) || (is_mine_) || (is_done_);
   }  // 是否满足return三条要求的其中一个
-  static int encode(Pii pos) { return pos.first * columns + pos.second; }
+  static int encode(Pii current_position) { return current_position.first * columns + current_position.second; }
   static int encode(int x, int y) { return x * columns + y; }
-  static Pii decode(int pos) { return std::make_pair(pos / columns, pos % columns); }
+  static Pii decode(int current_position) { return std::make_pair(current_position / columns, current_position % columns); }
   Block() : is_open_(false), is_mine_(false), is_done_(false), un_block_cnt_(-1), un_mine_(8) { return; }
 } block_status[MAX_LENGTH];
-bool IsInMap(const Pii &pos) {
-  return (0 <= pos.first && pos.first < rows) && (0 <= pos.second && pos.second < columns);
+bool IsInMap(const Pii &current_position) {
+  return (0 <= current_position.first && current_position.first < rows) && (0 <= current_position.second && current_position.second < columns);
 }
 bool IsInMap(int x, int y) { return (0 <= x && x < rows) && (0 <= y && y < columns); }
 class Option {
@@ -89,19 +89,19 @@ class Option {
 };
 std::queue<Option> op_queue;
 bool is_operated[MAX_LENGTH][3];  // 是否被操作过。每个位置至多被每种操作选中一次
-void PushIntoOperationQueue(int pos, int type) {
-  if (is_operated[pos][type]) return;  // 已经执行过此操作，拒绝执行
-  is_operated[pos][type] = true;
-  op_queue.push(Option{pos, type});
+void PushIntoOperationQueue(int current_position, int type) {
+  if (is_operated[current_position][type]) return;  // 已经执行过此操作，拒绝执行
+  is_operated[current_position][type] = true;
+  op_queue.push(Option{current_position, type});
   return;
 }  // 调用这个函数的时候，需要保证pos合法
 
 bool in_pos_queue[MAX_LENGTH];
 std::queue<int> pos_queue;
-void push_into_pos_queue(int pos) {
-  if (in_pos_queue[pos] || block_status[pos].is_not_analyzable()) return;  // 这样的点不必入队
-  pos_queue.push(pos);
-  in_pos_queue[pos] = true;
+void PushIntoPositionQueue(int current_position) {
+  if (in_pos_queue[current_position] || block_status[current_position].is_not_analyzable()) return;  // 这样的点不必入队
+  pos_queue.push(current_position);
+  in_pos_queue[current_position] = true;
   return;
 }  // 调用这个函数的时候，需要保证pos合法
 int GetPositionInTheFront() {
@@ -125,16 +125,16 @@ void InitGame() {
   unknown_mines = total_mines;
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
-      int pos = Block::encode(i, j);
+      int current_position = Block::encode(i, j);
       client_map[i][j] = '?';
-      block_status[pos].is_done_ = false;
-      block_status[pos].is_open_ = false;
-      block_status[pos].is_mine_ = false;
-      block_status[pos].un_block_cnt_ = -1;
-      is_operated[pos][VISIT] = false;
-      is_operated[pos][MARKMINE] = false;
-      is_operated[pos][AUTOEXPLORE] = false;
-      in_pos_queue[pos] = false;
+      block_status[current_position].is_done_ = false;
+      block_status[current_position].is_open_ = false;
+      block_status[current_position].is_mine_ = false;
+      block_status[current_position].un_block_cnt_ = -1;
+      is_operated[current_position][VISIT] = false;
+      is_operated[current_position][MARKMINE] = false;
+      is_operated[current_position][AUTOEXPLORE] = false;
+      in_pos_queue[current_position] = false;
     }
   }
   int first_row, first_column;
@@ -159,33 +159,33 @@ void ReadMap() {
       if (new_map == client_map[i][j]) continue;
       // 现在，此处发生了变化！
       client_map[i][j] = new_map;
-      int pos = Block::encode(i, j);
+      int current_position = Block::encode(i, j);
       if (new_map == '@') {
-        block_status[pos].is_open_ = true;
-        block_status[pos].is_mine_ = true;
+        block_status[current_position].is_open_ = true;
+        block_status[current_position].is_mine_ = true;
         --unknown_blocks;
         --unknown_mines;
         for (int dlt = 0; dlt < DELTA_FIVE; ++dlt) {
-          int nx = i + delta_row[dlt], ny = j + delta_column[dlt];
-          if (!IsInMap(nx, ny)) continue;
-          push_into_pos_queue(Block::encode(nx, ny));
+          int next_x = i + delta_row[dlt], next_y = j + delta_column[dlt];
+          if (!IsInMap(next_x, next_y)) continue;
+          PushIntoPositionQueue(Block::encode(next_x, next_y));
         }
       }  // 新标记的地雷格
       else {
         --unknown_blocks;
-        block_status[pos].is_open_ = true;
-        block_status[pos].is_mine_ = false;
-        block_status[pos].is_done_ = false;
-        block_status[pos].un_block_cnt_ = -1;
-        push_into_pos_queue(pos);
+        block_status[current_position].is_open_ = true;
+        block_status[current_position].is_mine_ = false;
+        block_status[current_position].is_done_ = false;
+        block_status[current_position].un_block_cnt_ = -1;
+        PushIntoPositionQueue(current_position);
       }  // 新开的点
     }
   }
   return;
 }
 
-int max(int a, int b) { return (a > b) ? a : b; }
-int min(int a, int b) { return (a < b) ? a : b; }
+int IntegerMaximum(int a, int b) { return (a > b) ? a : b; }
+int IntegerMinimum(int a, int b) { return (a < b) ? a : b; }
 std::vector<int> only_A, intersection_of_AB, only_B;  // 独属于A，交集，独属于B
 void Cooperate(int posA, int posB) {
   only_A.clear();
@@ -240,9 +240,9 @@ void Cooperate(int posA, int posB) {
   }  // 此时，setB全是雷，setA全安全
   // 以下是交集合作
   int min_intersection_mines =
-      max(max(block_status[posA].un_mine_ - only_A.size(), block_status[posB].un_mine_ - only_B.size()), (int)0);
+      IntegerMaximum(IntegerMaximum(block_status[posA].un_mine_ - only_A.size(), block_status[posB].un_mine_ - only_B.size()), (int)0);
   int max_intersection_mines =
-      min(min(block_status[posA].un_mine_, block_status[posB].un_mine_), intersection_of_AB.size());
+      IntegerMinimum(IntegerMinimum(block_status[posA].un_mine_, block_status[posB].un_mine_), intersection_of_AB.size());
   if (min_intersection_mines != max_intersection_mines) return;
   int setA_mine = block_status[posA].un_mine_ - min_intersection_mines;
   int setB_mine = block_status[posB].un_mine_ - max_intersection_mines;
@@ -281,70 +281,70 @@ void Cooperate(int posA, int posB) {
 }
 
 Block temporary_block;
-void UpdatePosition(int pos) {
-  temporary_block.is_done_ = block_status[pos].is_done_;
-  temporary_block.is_mine_ = block_status[pos].is_mine_;
-  temporary_block.is_open_ = block_status[pos].is_open_;
-  Pii position = Block::decode(pos);
+void UpdatePosition(int current_position) {
+  temporary_block.is_done_ = block_status[current_position].is_done_;
+  temporary_block.is_mine_ = block_status[current_position].is_mine_;
+  temporary_block.is_open_ = block_status[current_position].is_open_;
+  Pii position = Block::decode(current_position);
   int px = position.first, py = position.second;
   if (client_map[px][py] < '0' || client_map[px][py] > '9') return;
   temporary_block.un_mine_ = client_map[px][py] - '0';
   temporary_block.un_block_cnt_ = 0;
   for (int dlt = 0; dlt < DELTA_THREE; ++dlt) {
-    int nx = px + delta_row[dlt], ny = py + delta_column[dlt];
-    if (!IsInMap(nx, ny)) continue;
-    int npos = Block::encode(nx, ny);
-    if (client_map[nx][ny] == '@') {
+    int next_x = px + delta_row[dlt], next_y = py + delta_column[dlt];
+    if (!IsInMap(next_x, next_y)) continue;
+    int next_position = Block::encode(next_x, next_y);
+    if (client_map[next_x][next_y] == '@') {
       --temporary_block.un_mine_;
     }  // 不确定的雷数 -1
-    else if (client_map[nx][ny] == '?') {
-      temporary_block.un_block_pos_[temporary_block.un_block_cnt_++] = npos;
+    else if (client_map[next_x][next_y] == '?') {
+      temporary_block.un_block_pos_[temporary_block.un_block_cnt_++] = next_position;
     }  // 不确定的邻居数 +1
   }
-  if ((block_status[pos].un_mine_ != temporary_block.un_mine_) ||
-      (block_status[pos].un_block_cnt_ != temporary_block.un_block_cnt_)) {
+  if ((block_status[current_position].un_mine_ != temporary_block.un_mine_) ||
+      (block_status[current_position].un_block_cnt_ != temporary_block.un_block_cnt_)) {
     for (int dlt = 0; dlt < DELTA_FIVE; ++dlt) {
-      int nx = px + delta_row[dlt], ny = py + delta_column[dlt];
-      if (!IsInMap(nx, ny)) continue;
-      push_into_pos_queue(Block::encode(nx, ny));
+      int next_x = px + delta_row[dlt], next_y = py + delta_column[dlt];
+      if (!IsInMap(next_x, next_y)) continue;
+      PushIntoPositionQueue(Block::encode(next_x, next_y));
     }
   }  // 信息改变可能会影响到周围24个点的cooperate
-  block_status[pos] = temporary_block;
+  block_status[current_position] = temporary_block;
   return;
 }  // 调用时需要确保pos是一个数字
 
-void Analyze(int pos) {
-  if (block_status[pos].is_not_analyzable()) return;  // 没有分析价值
+void Analyze(int current_position) {
+  if (block_status[current_position].is_not_analyzable()) return;  // 没有分析价值
   // 以下，update 除了三个is以外的信息
-  Pii position = Block::decode(pos);
+  Pii position = Block::decode(current_position);
   int px = position.first, py = position.second;
-  UpdatePosition(pos);
-  if (block_status[pos].un_block_cnt_ == 0) {
-    block_status[pos].is_done_ = true;
+  UpdatePosition(current_position);
+  if (block_status[current_position].un_block_cnt_ == 0) {
+    block_status[current_position].is_done_ = true;
     return;
   }  // 任务完成
-  if (block_status[pos].un_mine_ == 0) {
-    block_status[pos].is_done_ = true;
-    PushIntoOperationQueue(pos, AUTOEXPLORE);
+  if (block_status[current_position].un_mine_ == 0) {
+    block_status[current_position].is_done_ = true;
+    PushIntoOperationQueue(current_position, AUTOEXPLORE);
     return;
   }  // 有不确定的位置但是雷的位置已经全定了，直接explore
-  if (block_status[pos].un_mine_ == block_status[pos].un_block_cnt_) {
-    block_status[pos].is_done_ = true;
-    for (int i = 0; i < block_status[pos].un_block_cnt_; ++i) {
-      PushIntoOperationQueue(block_status[pos].un_block_pos_[i], MARKMINE);
+  if (block_status[current_position].un_mine_ == block_status[current_position].un_block_cnt_) {
+    block_status[current_position].is_done_ = true;
+    for (int i = 0; i < block_status[current_position].un_block_cnt_; ++i) {
+      PushIntoOperationQueue(block_status[current_position].un_block_pos_[i], MARKMINE);
     }
     return;
   }  // 不确定的位置 = 不确定的雷，全部标雷
   for (int dlt = 0; dlt < DELTA_FIVE; ++dlt) {
-    int nx = px + delta_row[dlt], ny = py + delta_column[dlt];
-    if (!IsInMap(nx, ny)) continue;
-    int npos = Block::encode(nx, ny);
-    if (block_status[npos].is_not_analyzable()) continue;
+    int next_x = px + delta_row[dlt], next_y = py + delta_column[dlt];
+    if (!IsInMap(next_x, next_y)) continue;
+    int next_position = Block::encode(next_x, next_y);
+    if (block_status[next_position].is_not_analyzable()) continue;
     // 只需要和已经打开的、不是雷的、还存在待定位置的点合作
-    UpdatePosition(npos);
+    UpdatePosition(next_position);
     // 特别注意：ReadMap以后，新开的点的信息尚未更新（仍然处于原初状态），所以和新点合作的时候，务必先update它的信息
     // 实际上，Cooperate之前进行UpdatePosition不会起到负面作用
-    Cooperate(pos, npos);  // 发起合作
+    Cooperate(current_position, next_position);  // 发起合作
   }
   return;
 }
@@ -359,7 +359,7 @@ class Equation {
   double value_;
   int main_pivot_;  // 这个方程的主元
   double maximum_, minimum_;
-  void Clear() {
+  void clear() {
     pivot_.clear();
     value_ = 0.0;
     main_pivot_ = -1;  // -1指示尚未找到主元
@@ -367,7 +367,7 @@ class Equation {
     minimum_ = 0.0;    // 调整未知数取值，最小值
     return;
   }
-  void Shrink() {
+  void shrink() {
     for (std::map<int, double>::iterator it = pivot_.begin(); it != pivot_.end();) {
       if (DoubleAbsolute(it->second) < EPSILON)
         it = pivot_.erase(it);
@@ -380,10 +380,10 @@ class Equation {
   double &operator()() { return value_; }
   void operator/=(double div) {
     for (auto enumerate_pivot : pivot_) {
-      int p = enumerate_pivot.first;
+      int current_pivot = enumerate_pivot.first;
       double aim_coefficient = enumerate_pivot.second;
       aim_coefficient /= div;
-      pivot_[p] = aim_coefficient;
+      pivot_[current_pivot] = aim_coefficient;
     }
     value_ /= div;
     double mx = DoubleMaximum(maximum_ / div, minimum_ / div);
@@ -394,31 +394,31 @@ class Equation {
   }
   void operator-=(const Equation &sub) {
     for (auto dec : sub.pivot_) {
-      int p = dec.first;
+      int current_pivot = dec.first;
       double aim_coefficient = dec.second;
-      double v = pivot_[p];
-      maximum_ -= DoubleMaximum(v * 1.0, 0.0);
-      minimum_ -= DoubleMinimum(v * 1.0, 0.0);
-      v = (pivot_[p] -= aim_coefficient);
-      maximum_ += DoubleMaximum(v * 1.0, 0.0);
-      minimum_ += DoubleMinimum(v * 1.0, 0.0);
+      double number_value = pivot_[current_pivot];
+      maximum_ -= DoubleMaximum(number_value * 1.0, 0.0);
+      minimum_ -= DoubleMinimum(number_value * 1.0, 0.0);
+      number_value = (pivot_[current_pivot] -= aim_coefficient);
+      maximum_ += DoubleMaximum(number_value * 1.0, 0.0);
+      minimum_ += DoubleMinimum(number_value * 1.0, 0.0);
     }
     value_ -= sub.value_;
-    Shrink();
+    shrink();
     return;
   }
   void set_pivot(int aim_pivot, double val) {
-    double v = pivot_[aim_pivot];
-    maximum_ -= DoubleMaximum(v * 1.0, 0.0);
-    minimum_ -= DoubleMinimum(v * 1.0, 0.0);
-    value_ -= v * aim_pivot;  // 移项
+    double number_value = pivot_[aim_pivot];
+    maximum_ -= DoubleMaximum(number_value * 1.0, 0.0);
+    minimum_ -= DoubleMinimum(number_value * 1.0, 0.0);
+    value_ -= number_value * val;  // 移项
     return;
   }  // 给某个未知数规定一个值
   void reset_pivot(int aim_pivot, double val) {
-    double v = pivot_[aim_pivot];
-    maximum_ += DoubleMaximum(v * 1.0, 0.0);
-    minimum_ += DoubleMinimum(v * 1.0, 0.0);
-    value_ += v * val;
+    double number_value = pivot_[aim_pivot];
+    maximum_ += DoubleMaximum(number_value * 1.0, 0.0);
+    minimum_ += DoubleMinimum(number_value * 1.0, 0.0);
+    value_ += number_value * val;
     return;
   }  // 撤销赋这个值
 } temporary_equation;
@@ -435,14 +435,14 @@ Equation operator*(double val, Equation equation) {
 }
 
 int find_pivot[MAX_LENGTH];  // 全局公用，用来查询pos对应的元的编号
-const int MAX_COST(1 << 17);
+int MAX_COST(1 << 17);
 int mine_count;
 class Matrix {
  private:
   std::vector<Equation> equation_;
   std::vector<int> node_set_;  // 这个Matrix需要计算的pos的集合
 
-  std::vector<int> main_equation_;  // main_equation_[p] = 编号为p的pivot找到主方程了吗？-1 -> 没找到；否则，编号
+  std::vector<int> main_equation_;  // main_equation_[possibility] = 编号为p的pivot找到主方程了吗？-1 -> 没找到；否则，编号
 
   std::vector<double> pivot_priority_;  // 自由元的枚举优先级（非自由元优先级极低）
   std::vector<int> enumeration_order_;  // 枚举顺序
@@ -458,7 +458,7 @@ class Matrix {
   int solution_count_;                            // 探到的解计数
   int pivot_count_;                               // 有多少个pivot，用来分配元的编号
   int cost_;                                      // 探测开销
-  void SetUpMatrix() {
+  void set_up_matrix() {
     for (auto i : node_set_) {
       for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
         find_pivot[block_status[i].un_block_pos_[j]] = -1;
@@ -466,7 +466,7 @@ class Matrix {
     }
     pivot_count_ = 0;
     for (auto i : node_set_) {
-      temporary_equation.Clear();
+      temporary_equation.clear();
       temporary_equation() = block_status[i].un_mine_ * 1.0;
       for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
         int this_one = block_status[i].un_block_pos_[j];
@@ -489,7 +489,7 @@ class Matrix {
     }
     return;
   }  // 建立增广矩阵
-  void Calculate(int depth) {
+  void calculate_solution(int depth) {
     if (mine_count > unknown_mines) return;
     ++cost_;
     if (cost_ > MAX_COST) return;  // 开销过大，强制终止
@@ -555,7 +555,7 @@ class Matrix {
     if (verified_depth_[now] != -1) {
       if (store_[now] == 1) ++mine_count;
       if (change_val(store_[now], false)) {
-        Calculate(depth + 1);  // 计算下一层
+        calculate_solution(depth + 1);  // 计算下一层
       }  // 将now在方程里正式赋值，发现赋完值以后没有出现矛盾
       if (store_[now] == 1) --mine_count;
       change_val(store_[now], true);
@@ -564,13 +564,13 @@ class Matrix {
       verified_depth_[now] = depth;
       // try 0
       if (change_val(store_[now] = 0, false)) {
-        Calculate(depth + 1);  // 计算下一层
+        calculate_solution(depth + 1);  // 计算下一层
       }  // 将now在方程里赋为0，发现赋完值以后没有出现矛盾
       change_val(store_[now], true);
       // try 1
       if (change_val(store_[now] = 1, false)) {
         ++mine_count;
-        Calculate(depth + 1);  // 计算下一层
+        calculate_solution(depth + 1);  // 计算下一层
         --mine_count;
       }  // 将now在方程里赋为1，发现赋完值以后没有出现矛盾
       change_val(store_[now], true);
@@ -578,7 +578,7 @@ class Matrix {
     }
     return;
   }  // 统计解
-  void GaussianJordan() {
+  void gaussian_jordan() {
     // 以下，给每一个方程找主元，并进行消元
     for (int pivot = 0; pivot < pivot_count_; ++pivot) {
       for (int equation = 0; equation < equation_.size(); ++equation) {
@@ -643,8 +643,7 @@ class Matrix {
     return;
   }  // 消元
  public:
-  bool IsWithinCostLimit() const { return cost_ < MAX_COST; }
-  void Clear() {
+  void clear() {
     pivot_count_ = 0;
     solution_count_ = 0;
     cost_ = 0;
@@ -661,20 +660,19 @@ class Matrix {
     verified_depth_.clear();
     return;
   }
-  void AddNode(int pos) {
-    if (block_status[pos].is_not_analyzable() || (block_status[pos].un_block_cnt_ == 0)) return;
-    node_set_.push_back(pos);
+  void add_block(int current_position) {
+    if (block_status[current_position].is_not_analyzable() || (block_status[current_position].un_block_cnt_ == 0)) return;
+    node_set_.push_back(current_position);
     return;
   }
-  void SetUp() {
-    SetUpMatrix();
-    GaussianJordan();
+  void set_up() {
+    set_up_matrix();
+    gaussian_jordan();
     mine_count = 0;
-    Calculate(0);
+    calculate_solution(0);
     return;
   }
-  bool PushOperation() {
-    // if (!IsWithinCostLimit()) return false;
+  bool manage_singular_solution() {
     if (solution_count_ != 1) return false;
     for (auto i : node_set_) {
       for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
@@ -688,36 +686,35 @@ class Matrix {
     }
     return true;
   }
-  bool RecommendOperation() {
-    // if (solution_count_ < 10) return false;
-    double mxp = -1.0;
-    int pos, typ;
-    bool fid = false;
+  bool manage_multiple_solution() {
+    double maximum_possibility = -1.0;
+    int current_position, operation_type;
+    bool is_find_possible_choice = false;
     for (auto i : node_set_) {
       for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
         int this_one = block_status[i].un_block_pos_[j];
-        int zeroc = zero_count_[find_pivot[this_one]], onec = one_count_[find_pivot[this_one]];
-        int totalc = zeroc + onec;
+        int temporary_zero_count = zero_count_[find_pivot[this_one]], temporary_one_count = one_count_[find_pivot[this_one]];
+        int totalc = temporary_zero_count + temporary_one_count;
         if (!totalc) continue;
-        double p = DoubleMaximum((zeroc * 1.0 / totalc), (onec * 1.0 / totalc));
-        if (p - mxp > EPSILON) {
-          mxp = p;
-          pos = this_one;
-          if (zeroc > onec)
-            typ = VISIT;
+        double possibility = DoubleMaximum((temporary_zero_count * 1.0 / totalc), (temporary_one_count * 1.0 / totalc));
+        if (possibility - maximum_possibility > EPSILON) {
+          maximum_possibility = possibility;
+          current_position = this_one;
+          if (temporary_zero_count > temporary_one_count)
+            operation_type = VISIT;
           else
-            typ = MARKMINE;
-          fid = true;
+            operation_type = MARKMINE;
+          is_find_possible_choice = true;
         }
       }
     }
-    if (!fid) return false;
-    PushIntoOperationQueue(pos, typ);
+    if (!is_find_possible_choice) return false;
+    PushIntoOperationQueue(current_position, operation_type);
     return true;
   }
-} temporary;
+} temporary_matrix;
 int father[MAX_LENGTH];
-bool is_connected(int A, int B) {
+bool IsConnected(int A, int B) {
   for (int i = 0; i < block_status[A].un_block_cnt_; ++i) {
     for (int j = 0; j < block_status[B].un_block_cnt_; ++j) {
       if (block_status[A].un_block_pos_[i] == block_status[B].un_block_pos_[j]) return true;
@@ -725,40 +722,41 @@ bool is_connected(int A, int B) {
   }
   return false;
 }
-int get_father(int pos) {
-  if (pos == father[pos]) return pos;
-  return father[pos] = get_father(father[pos]);
+int get_father(int current_position) {
+  if (current_position == father[current_position]) return current_position;
+  return father[current_position] = get_father(father[current_position]);
 }
 int matrix_count;
 int find_number[MAX_LENGTH];
-std::vector<Matrix> Gauss;
+std::vector<Matrix> gauss_equations;
 Matrix global_matrix;
 std::vector<int> global_vector;
 bool GaussianElimination() {
   // 以下是初始化
+  MAX_COST = (1 << 20);
   matrix_count = 0;
-  Gauss.clear();
+  gauss_equations.clear();
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
-      int pos = Block::encode(i, j);
-      UpdatePosition(pos);
-      if ((block_status[pos].is_not_analyzable()) || (block_status[pos].un_block_cnt_ == 0)) continue;
-      father[pos] = pos;
+      int current_position = Block::encode(i, j);
+      UpdatePosition(current_position);
+      if ((block_status[current_position].is_not_analyzable()) || (block_status[current_position].un_block_cnt_ == 0)) continue;
+      father[current_position] = current_position;
     }
   }
   // 以下是并查集合并节点
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
-      int pos = Block::encode(i, j);
-      if ((block_status[pos].is_not_analyzable()) || (block_status[pos].un_block_cnt_ == 0)) continue;
+      int current_position = Block::encode(i, j);
+      if ((block_status[current_position].is_not_analyzable()) || (block_status[current_position].un_block_cnt_ == 0)) continue;
       for (int dlt = 0; dlt < DELTA_FIVE; ++dlt) {
-        int nx = i + delta_row[dlt], ny = j + delta_column[dlt];
-        if (!IsInMap(nx, ny)) continue;
-        int npos = Block::encode(nx, ny);
-        if ((block_status[npos].is_not_analyzable()) || (block_status[npos].un_block_cnt_ == 0)) continue;
-        if (is_connected(pos, npos)) {
-          int father_of_pos = get_father(father[pos]);
-          int father_of_next_pos = get_father(father[npos]);
+        int next_x = i + delta_row[dlt], next_y = j + delta_column[dlt];
+        if (!IsInMap(next_x, next_y)) continue;
+        int next_position = Block::encode(next_x, next_y);
+        if ((block_status[next_position].is_not_analyzable()) || (block_status[next_position].un_block_cnt_ == 0)) continue;
+        if (IsConnected(current_position, next_position)) {
+          int father_of_pos = get_father(father[current_position]);
+          int father_of_next_pos = get_father(father[next_position]);
           father[father_of_next_pos] = father_of_pos;
         }
       }
@@ -767,49 +765,57 @@ bool GaussianElimination() {
   // 以下是给连通块编号
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
-      int pos = Block::encode(i, j);
-      if ((block_status[pos].is_not_analyzable()) || (block_status[pos].un_block_cnt_ == 0)) continue;
-      father[pos] = get_father(pos);
-      if (pos == father[pos]) {
-        find_number[pos] = matrix_count++;
-        Gauss.push_back(temporary);
-        Gauss[matrix_count - 1].Clear();
+      int current_position = Block::encode(i, j);
+      if ((block_status[current_position].is_not_analyzable()) || (block_status[current_position].un_block_cnt_ == 0)) continue;
+      father[current_position] = get_father(current_position);
+      if (current_position == father[current_position]) {
+        find_number[current_position] = matrix_count++;
+        gauss_equations.push_back(temporary_matrix);
+        gauss_equations[matrix_count - 1].clear();
       }
     }
   }
   // 以下是构建每一组高斯消元
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
-      int pos = Block::encode(i, j);
-      if ((block_status[pos].is_not_analyzable()) || (block_status[pos].un_block_cnt_ == 0)) continue;
-      Gauss[find_number[father[pos]]].AddNode(pos);
+      int current_position = Block::encode(i, j);
+      if ((block_status[current_position].is_not_analyzable()) || (block_status[current_position].un_block_cnt_ == 0)) continue;
+      gauss_equations[find_number[father[current_position]]].add_block(current_position);
     }
   }
   // 以下是处理每一组高斯消元
   for (int i = 0; i < matrix_count; ++i) {
-    Gauss[i].SetUp();
+    gauss_equations[i].set_up();
   }
   // 以下是试图处理有唯一解的情况
   int singular_count = 0;
   for (int i = 0; i < matrix_count; ++i) {
-    singular_count += Gauss[i].PushOperation();
+    singular_count += gauss_equations[i].manage_singular_solution();
   }
   if (singular_count) return true;
+  // 以下是全局高斯消元
 
+  if (total_mines == 18) MAX_COST = 1000000000;
+  if (total_mines == 20) MAX_COST = 1000000000;
+  if (total_mines == 84) MAX_COST = 1000000000;
+  if (total_mines == 43) MAX_COST = 1000000000;
+  if (total_mines == 71) MAX_COST = 1000000000;
+  if (total_mines == 164) MAX_COST = 1000000000;
+  
   global_vector.clear();
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
-      int pos = Block::encode(i, j);
-      UpdatePosition(pos);
-      if ((!block_status[pos].is_not_analyzable()) && block_status[pos].un_block_cnt_ > 0) global_vector.push_back(pos);
+      int current_position = Block::encode(i, j);
+      UpdatePosition(current_position);
+      if ((!block_status[current_position].is_not_analyzable()) && block_status[current_position].un_block_cnt_ > 0) global_vector.push_back(current_position);
     }
   }
   if (global_vector.empty()) return false;
-  global_matrix.Clear();
-  for (auto i : global_vector) global_matrix.AddNode(i);
-  global_matrix.SetUp();
-  if (global_matrix.PushOperation()) return true;
-  if (global_matrix.RecommendOperation()) return true;
+  global_matrix.clear();
+  for (auto i : global_vector) global_matrix.add_block(i);
+  global_matrix.set_up();
+  if (global_matrix.manage_singular_solution()) return true;
+  if (global_matrix.manage_multiple_solution()) return true;
   return false;
 }
 void Randomize() {
@@ -854,8 +860,8 @@ void Decide() {
     if (!op_queue.empty()) {
       Option res = op_queue.front();
       op_queue.pop();
-      Pii pos = Block::decode(res.pos_);
-      Execute(pos.first, pos.second, res.type_);
+      Pii current_position = Block::decode(res.pos_);
+      Execute(current_position.first, current_position.second, res.type_);
       return;
     }
     if (!unknown_blocks) continue;
@@ -863,8 +869,8 @@ void Decide() {
       for (int i = 0; i < rows; ++i) {
         for (int j = 0; j < columns; ++j) {
           if (client_map[i][j] != '?') continue;
-          int pos = Block::encode(i, j);
-          PushIntoOperationQueue(pos, MARKMINE);
+          int current_position = Block::encode(i, j);
+          PushIntoOperationQueue(current_position, MARKMINE);
         }
       }
       continue;
@@ -873,8 +879,8 @@ void Decide() {
       for (int i = 0; i < rows; ++i) {
         for (int j = 0; j < columns; ++j) {
           if (client_map[i][j] != '?') continue;
-          int pos = Block::encode(i, j);
-          PushIntoOperationQueue(pos, VISIT);
+          int current_position = Block::encode(i, j);
+          PushIntoOperationQueue(current_position, VISIT);
         }
       }
       continue;

@@ -38,7 +38,7 @@ int game_state;  // The state of the game, 0 for continuing, 1 for winning, -1 f
  * where X stands for a mine block and . stands for a normal block. After executing this function, your game map
  * would be initialized, with all the blocks unvisited.
  */
-bool IsInMap(int x, int y) {
+bool IsInTheMap(int x, int y) {
   return (0 <= x && x < rows) && (0 <= y && y < columns);
 }
 void InitMap() {
@@ -65,7 +65,7 @@ void InitMap() {
       actual_state[i][j] = '0';
       for (int delta = 0; delta < 8; ++delta) {
         int new_x = i + dx[delta], new_y = j + dy[delta];
-        if (!IsInMap(new_x, new_y)) continue;
+        if (!IsInTheMap(new_x, new_y)) continue;
         actual_state[i][j] += (actual_state[new_x][new_y] == 'X');
       }
     }
@@ -132,7 +132,7 @@ void VisitBlock(int r, int c) {
     } // 只有0才会触发继续探索
     for (int dlt = 0; dlt < 8; ++dlt) {
       int new_x = pos_x + dx[dlt], new_y = pos_y + dy[dlt];
-      if ((!IsInMap(new_x, new_y)) || (output_state[new_x][new_y] != '?')) continue;
+      if ((!IsInTheMap(new_x, new_y)) || (output_state[new_x][new_y] != '?')) continue;
       position_queue.push(std::make_pair(new_x, new_y));
     }
   }
@@ -205,7 +205,7 @@ void AutoExplore(int r, int c) {
   while (position_queue.size()) position_queue.pop();
   for (int delta = 0; delta < 8; ++delta) {
     int new_x = r + dx[delta], new_y = c + dy[delta];
-    if (!IsInMap(new_x, new_y)) continue;
+    if (!IsInTheMap(new_x, new_y)) continue;
     if ((actual_state[new_x][new_y] == 'X') && (output_state[new_x][new_y] != '@')) return; // 没有全部标记，拒绝操作
     if (output_state[new_x][new_y] == '?') position_queue.push(std::make_pair(new_x, new_y));
   }
@@ -227,7 +227,7 @@ void AutoExplore(int r, int c) {
     } // 只有0才会触发继续探索
     for (int delta = 0; delta < 8; ++delta) {
       int new_x = pos_x + dx[delta], new_y = pos_y + dy[delta];
-      if ((!IsInMap(new_x, new_y)) || (output_state[new_x][new_y] != '?')) continue;
+      if ((!IsInTheMap(new_x, new_y)) || (output_state[new_x][new_y] != '?')) continue;
       position_queue.push(std::make_pair(new_x, new_y));
     }
   }
