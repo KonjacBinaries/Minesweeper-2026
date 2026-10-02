@@ -452,7 +452,7 @@ Equation operator*(double val, Equation equ) {
 }
 
 int find_pivot[MAXLENGTH]; //全局公用，用来查询pos对应的元的编号
-int MAXCOST;
+const int MAXCOST(1 << 17);
 int mine_count;
 class Matrix{
   private:
@@ -649,6 +649,9 @@ class Matrix{
       return;
     } // 消元
   public:
+    bool Completed() {
+      return cost_ < MAXCOST;
+    }
     void Clear() {
       pivot_count_ = 0;
       solution_count_ = 0;
@@ -679,6 +682,7 @@ class Matrix{
       return;
     }
     bool PushOperation() {
+      // if (!Completed()) return false;
       if (solution_count_ != 1) return false;
       for (auto i : node_set_) {
         for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
@@ -694,6 +698,7 @@ class Matrix{
       return true;
     }
     bool RecommendOperation() {
+      // if (solution_count_ < 10) return false;
       double mxp = -1.0;
       int pos, typ;
       bool fid = false;
@@ -738,7 +743,6 @@ Matrix Global;
 std::vector<int> global;
 bool GaussianElimination() {
   // 以下是初始化
-  MAXCOST = (1 << 20);
   matrix_count = 0;
   Gauss.clear();
   for (int i = 0; i < rows; ++i) {
@@ -798,7 +802,6 @@ bool GaussianElimination() {
   }
   if (singular_count) return true;
 
-  MAXCOST = (1 << 17);
   global.clear();
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
