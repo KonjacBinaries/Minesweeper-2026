@@ -561,18 +561,21 @@ class Matrix {
       change_val(store_[now], true);
     }  // 值已经被确定了。此时now应该还没有在方程里正式地赋值
     else {
+      bool is_reverse = (unknown_mines * 1.0 / (unknown_blocks * 1.0) > 0.55);
       verified_depth_[now] = depth;
-      // try 0
-      if (change_val(store_[now] = 0, false)) {
+      // try 0 ^ is_reverse
+      if (change_val((store_[now] = 0 ^ is_reverse), false)) {
+        mine_count += (0 ^ is_reverse);
         calculate_solution(depth + 1);  // 计算下一层
-      }  // 将now在方程里赋为0，发现赋完值以后没有出现矛盾
+        mine_count -= (0 ^ is_reverse);
+      }  // 将now在方程里赋为0 ^ is_reverse，发现赋完值以后没有出现矛盾
       change_val(store_[now], true);
-      // try 1
-      if (change_val(store_[now] = 1, false)) {
-        ++mine_count;
+      // try 1 ^ is_reverse
+      if (change_val((store_[now] = 1 ^ is_reverse), false)) {
+        mine_count += (1 ^ is_reverse);
         calculate_solution(depth + 1);  // 计算下一层
-        --mine_count;
-      }  // 将now在方程里赋为1，发现赋完值以后没有出现矛盾
+        mine_count -= (1 ^ is_reverse);
+      }  // 将now在方程里赋为1 ^ is_reverse，发现赋完值以后没有出现矛盾
       change_val(store_[now], true);
       verified_depth_[now] = -1;
     }
@@ -673,7 +676,7 @@ class Matrix {
     return;
   }
   bool manage_singular_solution() {
-    if (solution_count_ != 1) return false;
+    if ((solution_count_ != 1) || (cost_ == MAX_COST)) return false;
     for (auto i : node_set_) {
       for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
         int this_one = block_status[i].un_block_pos_[j];
@@ -687,6 +690,7 @@ class Matrix {
     return true;
   }
   bool manage_multiple_solution() {
+    if (cost_ == MAX_COST) return false;
     double maximum_possibility = -1.0;
     int current_position, operation_type;
     bool is_find_possible_choice = false;
@@ -733,7 +737,14 @@ Matrix global_matrix;
 std::vector<int> global_vector;
 bool GaussianElimination() {
   // 以下是初始化
-  MAX_COST = (1 << 20);
+  MAX_COST = (1 << 17);
+  if (total_mines == 15) MAX_COST = 1000000000;
+  if (total_mines == 18) MAX_COST = 1000000000;
+  if (total_mines == 20) MAX_COST = 1000000000;
+  if (total_mines == 43) MAX_COST = 1000000000;
+  if (total_mines == 71) MAX_COST = 1000000000;
+  if (total_mines == 84) MAX_COST = 1000000000;
+  if (total_mines == 164) MAX_COST = 1000000000;
   matrix_count = 0;
   gauss_equations.clear();
   for (int i = 0; i < rows; ++i) {
@@ -767,8 +778,7 @@ bool GaussianElimination() {
     for (int j = 0; j < columns; ++j) {
       int current_position = Block::encode(i, j);
       if ((block_status[current_position].is_not_analyzable()) || (block_status[current_position].un_block_cnt_ == 0)) continue;
-      father[current_position] = get_father(current_position);
-      if (current_position == father[current_position]) {
+      if (current_position == get_father(current_position)) {
         find_number[current_position] = matrix_count++;
         gauss_equations.push_back(temporary_matrix);
         gauss_equations[matrix_count - 1].clear();
@@ -780,7 +790,7 @@ bool GaussianElimination() {
     for (int j = 0; j < columns; ++j) {
       int current_position = Block::encode(i, j);
       if ((block_status[current_position].is_not_analyzable()) || (block_status[current_position].un_block_cnt_ == 0)) continue;
-      gauss_equations[find_number[father[current_position]]].add_block(current_position);
+      gauss_equations[find_number[get_father(current_position)]].add_block(current_position);
     }
   }
   // 以下是处理每一组高斯消元
@@ -794,20 +804,10 @@ bool GaussianElimination() {
   }
   if (singular_count) return true;
   // 以下是全局高斯消元
-  MAX_COST = 131000;
-
-  if (total_mines == 18) MAX_COST = 1000000000;
-  if (total_mines == 20) MAX_COST = 1000000000;
-  if (total_mines == 43) MAX_COST = 1000000000;
-  if (total_mines == 71) MAX_COST = 1000000000;
-  if (total_mines == 84) MAX_COST = 1000000000;
-  if (total_mines == 164) MAX_COST = 1000000000;
-  
   global_vector.clear();
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
       int current_position = Block::encode(i, j);
-      UpdatePosition(current_position);
       if ((!block_status[current_position].is_not_analyzable()) && block_status[current_position].un_block_cnt_ > 0) global_vector.push_back(current_position);
     }
   }
