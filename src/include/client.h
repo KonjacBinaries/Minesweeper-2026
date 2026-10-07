@@ -513,7 +513,6 @@ class Matrix {
     // 这样一来，所有的能消的就都消了，自由元也都存好了（都在前面，且已按权重排序）
     return;
   }  // 消元
- public:
   void clear() {
     pivot_count_ = 0;
     solution_count_ = 0;
@@ -532,6 +531,7 @@ class Matrix {
     return;
   }
   void add_block(int current_position) {
+    UpdatePosition(current_position); // 添加到矩阵之前，首先更新它的信息
     if (block_status[current_position].is_not_analyzable() || (block_status[current_position].un_block_cnt_ == 0)) return;
     node_set_.push_back(current_position);
     return;
@@ -605,6 +605,7 @@ class Matrix {
     PushIntoOperationQueue(current_position, operation_type);
     return true;
   }
+ public:
   bool analyze(std::vector<int> positions, double lowest_acceptable_possibility) {
     clear();
     for (auto i : positions) {
@@ -698,11 +699,9 @@ void Analyze(int current_position) {
     int next_x = position_x + delta_row[enumerate_delta], next_y = position_y + delta_column[enumerate_delta];
     if (!IsInMap(next_x, next_y)) continue;
     int next_position = Block::encode(next_x, next_y);
-    if (block_status[next_position].is_not_analyzable()) continue;
-    // 只需要和已经打开的、不是雷的、还存在待定位置的点合作
     UpdatePosition(next_position);
-    // 特别注意：ReadMap以后，新开的点的信息尚未更新（仍然处于原初状态），所以和新点合作的时候，务必先update它的信息
-    // 实际上，小型高斯消元之前进行UpdatePosition不会起到负面作用
+    if (block_status[next_position].is_not_analyzable()) continue;
+    // 只需要和已经打开的、不是雷的、还存在待定位置的点进行小型高斯消元
     temporary_matrix.analyze({current_position, next_position}, 1.0);
   }
   return;
