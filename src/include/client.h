@@ -186,6 +186,7 @@ void ReadMap() {
 
 Block temporary_block;
 void UpdatePosition(int current_position) {
+  if (block_status[current_position].is_not_analyzable()) return;
   temporary_block.is_done_ = block_status[current_position].is_done_;
   temporary_block.is_mine_ = block_status[current_position].is_mine_;
   temporary_block.is_open_ = block_status[current_position].is_open_;
