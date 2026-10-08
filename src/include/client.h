@@ -304,25 +304,20 @@ Equation operator*(double val, Equation equation) {
 }
 
 int find_pivot[MAX_LENGTH];  // 全局公用，用来查询pos对应的元的编号
-const int MAX_COST(1 << 17);
+int MAX_COST(1 << 17);
 int mine_count;
 class Matrix {
  private:
   std::vector<Equation> equation_;
   std::vector<int> node_set_;  // 这个Matrix需要计算的pos的集合
-
   std::vector<int> main_equation_;  // main_equation_[possibility] = 编号为p的pivot找到主方程了吗？-1 -> 没找到；否则，编号
-
   std::vector<double> pivot_priority_;  // 自由元的枚举优先级（非自由元优先级极低）
   std::vector<int> enumeration_order_;  // 枚举顺序
   std::vector<int> free_pivot_;         // 自由元
-
   std::vector<double> store_;        // 变量里的值
   std::vector<int> verified_depth_;  // 变量得到值了吗？在第几层确定的？
-
   std::vector<int> zero_count_;  // 探到的合法解里，这个未知数取了几次0
   std::vector<int> one_count_;   // 探到的合法解里，这个未知数取了几次1
-
   std::vector<std::vector<int> > contain_pivot_;  // 包含这个元的方程编号
   int solution_count_;                            // 探到的解计数
   int pivot_count_;                               // 有多少个pivot，用来分配元的编号
@@ -413,7 +408,8 @@ class Matrix {
             }
           }  // 最小值锁定
         }
-      } else {
+      }
+      else {
         for (int i = 0; i < pivot_count_; ++i) {
           if (i == now) continue;
           if (verified_depth_[i] == depth) verified_depth_[i] = -1;
@@ -494,18 +490,15 @@ class Matrix {
         }
         contain_pivot_[pivot].push_back(equation);
       }
-      if (equation_[equation].pivot_.empty() && DoubleAbsolute(equation_[equation].value_) > EPSILON) return;
     }
 
     // 以下，计算自由元的枚举优先级
     for (int pivot = 0; pivot < pivot_count_; ++pivot) {
       if (main_equation_[pivot] == -1) {
-        double value = contain_pivot_[pivot].size() * 1.0;
-
-        // 先随便给个值吧，待会再修饰
-
+        double value = contain_pivot_[pivot].size() * 1.0; // 可以改进
         pivot_priority_[pivot] += value;
-      } else {
+      }
+      else {
         pivot_priority_[pivot] += contain_pivot_[pivot].size() * 1.0;
       }
     }
@@ -537,29 +530,23 @@ class Matrix {
     node_set_.push_back(current_position);
     return;
   }
-  void set_up() {
-    set_up_matrix();
-    gaussian_jordan();
-    mine_count = 0;
-    calculate_solution(0);
-    return;
-  }
   bool manage_singular_solution() {
-    if ((solution_count_ != 1) || (cost_ == MAX_COST)) return false;
+    if ((solution_count_ != 1) || (cost_ >= MAX_COST)) return false;
     for (auto i : node_set_) {
       for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
         int this_one = block_status[i].un_block_pos_[j];
         if (zero_count_[find_pivot[this_one]]) {
           PushIntoOperationQueue(this_one, VISIT);
-        } else {
+        }
+        else {
           PushIntoOperationQueue(this_one, MARKMINE);
         }
       }
     }
     return true;
   }
-  bool manage_multiple_solution(double lowest_acceptable_possibility) {
-    if (cost_ == MAX_COST) return false;
+  bool manage_multiple_solution() {
+    if (cost_ >= MAX_COST) return false;
     bool is_find_possible_choice = false;
     for (auto i : node_set_) {
       for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
@@ -567,12 +554,12 @@ class Matrix {
         int temporary_zero_count = zero_count_[find_pivot[this_one]], temporary_one_count = one_count_[find_pivot[this_one]];
         int totalc = temporary_zero_count + temporary_one_count;
         if (!totalc) continue;
-        double possibility = DoubleMaximum((temporary_zero_count * 1.0 / totalc), (temporary_one_count * 1.0 / totalc));
-        if (possibility - lowest_acceptable_possibility > -1.0 * EPSILON) {
-          if (temporary_zero_count > temporary_one_count)
+        if (temporary_zero_count == totalc) {
             PushIntoOperationQueue(this_one, VISIT);
-          else
-            PushIntoOperationQueue(this_one, MARKMINE);
+            is_find_possible_choice = true;
+        }
+        else if (temporary_one_count == totalc) {
+          PushIntoOperationQueue(this_one, MARKMINE);
           is_find_possible_choice = true;
         }
       }
@@ -580,7 +567,6 @@ class Matrix {
     return is_find_possible_choice;
   }
   bool manage_multiple_solution_maximize() {
-    if (cost_ == MAX_COST) return false;
     double maximum_possibility = -1.0;
     int current_position, operation_type;
     bool is_find_possible_choice = false;
@@ -607,22 +593,28 @@ class Matrix {
     return true;
   }
  public:
-  bool analyze(std::vector<int> positions, double lowest_acceptable_possibility) {
+  bool analyze(std::vector<int> positions) {
     clear();
     for (auto i : positions) {
       add_block(i);
     }
-    set_up();
+    set_up_matrix();
+    gaussian_jordan();
+    mine_count = 0;
+    calculate_solution(0);
     if (manage_singular_solution()) return true;
-    if (manage_multiple_solution(lowest_acceptable_possibility)) return true;
+    if (manage_multiple_solution()) return true;
     return false;
-  } // lowest_acceptable_possibility是可接受的最低概率
+  }
   bool guess(std::vector<int> positions) {
     clear();
     for (auto i : positions) {
       add_block(i);
     }
-    set_up();
+    set_up_matrix();
+    gaussian_jordan();
+    mine_count = 0;
+    calculate_solution(0);
     if (manage_singular_solution()) return true;
     if (manage_multiple_solution_maximize()) return true;
     return false;
@@ -631,6 +623,7 @@ class Matrix {
 Matrix global_matrix;
 std::vector<int> global_vector;
 bool GaussianElimination() {
+  MAX_COST = (1 << 17);
   global_vector.clear();
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
@@ -703,9 +696,28 @@ void Analyze(int current_position) {
     UpdatePosition(next_position);
     if (block_status[next_position].is_not_analyzable()) continue;
     // 只需要和已经打开的、不是雷的、还存在待定位置的点进行小型高斯消元
-    temporary_matrix.analyze({current_position, next_position}, 1.0);
+    temporary_matrix.analyze({current_position, next_position});
   }
   return;
+}
+bool GlobalScan() {
+  return false;
+  MAX_COST = (1 << 21);
+  bool flag = false;
+  for (int i = 0; i < rows - 1; ++i) {
+    for (int j = 0; j < columns - 1; ++j) {
+      int pos_a = Block::encode(i, j);
+      int pos_b = Block::encode(i + 1, j);
+      int pos_c = Block::encode(i, j + 1);
+      int pos_d = Block::encode(i + 1, j + 1);
+      if (block_status[pos_a].is_not_analyzable()
+       || block_status[pos_b].is_not_analyzable() 
+       || block_status[pos_c].is_not_analyzable() 
+       || block_status[pos_d].is_not_analyzable()) continue;
+      flag |= temporary_matrix.analyze({pos_a, pos_b, pos_c, pos_d});
+    }
+  }
+  return flag;
 }
 
 /**
@@ -725,8 +737,10 @@ void Decide() {
     }
     int position_in_front = GetPositionInTheFront();
     if (position_in_front == -1) {
-      // Gaussian消元 + 随机
-      if (!GaussianElimination()) Randomize();
+      // 全局扫描 + 全局Gaussian消元 + 随机
+      if (GlobalScan()) continue;
+      if (GaussianElimination()) continue;
+      Randomize();
     }
     else {
       Analyze(position_in_front);
