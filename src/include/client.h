@@ -622,18 +622,18 @@ class Matrix {
 } temporary_matrix;
 Matrix global_matrix;
 std::vector<int> global_vector;
-bool GaussianElimination() {
-  MAX_COST = (1 << 17);
+bool GaussianElimination(int S_x, int S_y, int T_x, int T_y, bool analyze = false) {
   global_vector.clear();
-  for (int i = 0; i < rows; ++i) {
-    for (int j = 0; j < columns; ++j) {
+  for (int i = S_x; i <= T_x; ++i) {
+    for (int j = S_y; j <= T_y; ++j) {
       int current_position = Block::encode(i, j);
       if ((!block_status[current_position].is_not_analyzable()) && block_status[current_position].un_block_cnt_ > 0) global_vector.push_back(current_position);
     }
   }
   if (global_vector.empty()) return false;
+  if (analyze) return global_matrix.analyze(global_vector);
   return global_matrix.guess(global_vector);
-}
+} // 对(S_x, S_y)为左上角，(T_x, T_y)为右下角的矩阵进行消元
 
 void Randomize() {
   for (int range = 3; range >= 0; --range) {
@@ -700,21 +700,15 @@ void Analyze(int current_position) {
   }
   return;
 }
-bool GlobalScan() {
-  return false;
-  MAX_COST = (1 << 21);
+bool GlobalScan(int max_x_len, int max_y_len) {
   bool flag = false;
-  for (int i = 0; i < rows - 1; ++i) {
-    for (int j = 0; j < columns - 1; ++j) {
-      int pos_a = Block::encode(i, j);
-      int pos_b = Block::encode(i + 1, j);
-      int pos_c = Block::encode(i, j + 1);
-      int pos_d = Block::encode(i + 1, j + 1);
-      if (block_status[pos_a].is_not_analyzable()
-       || block_status[pos_b].is_not_analyzable() 
-       || block_status[pos_c].is_not_analyzable() 
-       || block_status[pos_d].is_not_analyzable()) continue;
-      flag |= temporary_matrix.analyze({pos_a, pos_b, pos_c, pos_d});
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      for (int x = i; x < i + max_x_len && x < rows; ++x) {
+        for (int y = j; y < j + max_y_len && y < columns; ++y) {
+          flag |= GaussianElimination(i, j, x, y, true);
+        }
+      }
     }
   }
   return flag;
@@ -738,8 +732,8 @@ void Decide() {
     int position_in_front = GetPositionInTheFront();
     if (position_in_front == -1) {
       // 全局扫描 + 全局Gaussian消元 + 随机
-      if (GlobalScan()) continue;
-      if (GaussianElimination()) continue;
+      if (GlobalScan(6, 6)) continue;
+      if (GaussianElimination(0, 0, rows - 1, columns - 1)) continue;
       Randomize();
     }
     else {
