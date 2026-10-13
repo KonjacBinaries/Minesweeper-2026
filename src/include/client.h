@@ -9,6 +9,7 @@
 #include <random>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 extern int rows;         // The count of rows of the game map.
 extern int columns;      // The count of columns of the game map.
@@ -219,9 +220,6 @@ void UpdatePosition(int current_position) {
 }  // 调用时需要确保pos是一个数字
 
 const double EPSILON(1e-13);
-double DoubleAbsolute(double val) { return (val < 0) ? -val : val; }
-double DoubleMaximum(double a, double b) { return (a > b) ? a : b; }
-double DoubleMinimum(double a, double b) { return (a < b) ? a : b; }
 class Equation {
  public:
   std::map<int, double> pivot_;  // Pivot[num] = coefficient
@@ -238,7 +236,7 @@ class Equation {
   }
   void shrink() {
     for (std::map<int, double>::iterator it = pivot_.begin(); it != pivot_.end();) {
-      if (DoubleAbsolute(it->second) < EPSILON)
+      if (std::abs(it->second) < EPSILON)
         it = pivot_.erase(it);
       else
         ++it;
@@ -255,8 +253,8 @@ class Equation {
       pivot_[current_pivot] = aim_coefficient;
     }
     value_ /= div;
-    double mx = DoubleMaximum(maximum_ / div, minimum_ / div);
-    double mn = DoubleMinimum(maximum_ / div, minimum_ / div);
+    double mx = std::max(maximum_ / div, minimum_ / div);
+    double mn = std::min(maximum_ / div, minimum_ / div);
     maximum_ = mx;
     minimum_ = mn;
     return;
@@ -266,11 +264,11 @@ class Equation {
       int current_pivot = dec.first;
       double aim_coefficient = dec.second;
       double number_value = pivot_[current_pivot];
-      maximum_ -= DoubleMaximum(number_value * 1.0, 0.0);
-      minimum_ -= DoubleMinimum(number_value * 1.0, 0.0);
+      maximum_ -= std::max(number_value * 1.0, 0.0);
+      minimum_ -= std::min(number_value * 1.0, 0.0);
       number_value = (pivot_[current_pivot] -= aim_coefficient);
-      maximum_ += DoubleMaximum(number_value * 1.0, 0.0);
-      minimum_ += DoubleMinimum(number_value * 1.0, 0.0);
+      maximum_ += std::max(number_value * 1.0, 0.0);
+      minimum_ += std::min(number_value * 1.0, 0.0);
     }
     value_ -= sub.value_;
     shrink();
@@ -278,15 +276,15 @@ class Equation {
   }
   void set_pivot(int aim_pivot, double val) {
     double number_value = pivot_[aim_pivot];
-    maximum_ -= DoubleMaximum(number_value * 1.0, 0.0);
-    minimum_ -= DoubleMinimum(number_value * 1.0, 0.0);
+    maximum_ -= std::max(number_value * 1.0, 0.0);
+    minimum_ -= std::min(number_value * 1.0, 0.0);
     value_ -= number_value * val;  // 移项
     return;
   }  // 给某个未知数规定一个值
   void reset_pivot(int aim_pivot, double val) {
     double number_value = pivot_[aim_pivot];
-    maximum_ += DoubleMaximum(number_value * 1.0, 0.0);
-    minimum_ += DoubleMinimum(number_value * 1.0, 0.0);
+    maximum_ += std::max(number_value * 1.0, 0.0);
+    minimum_ += std::min(number_value * 1.0, 0.0);
     value_ += number_value * val;
     return;
   }  // 撤销赋这个值
@@ -296,15 +294,14 @@ Equation operator*(double val, Equation equation) {
     equation.pivot_[enumerate_pivot.first] *= val;
   }
   equation.value_ *= val;
-  double mx = DoubleMaximum(equation.maximum_ * val, equation.minimum_ * val);
-  double mn = DoubleMinimum(equation.maximum_ * val, equation.minimum_ * val);
+  double mx = std::max(equation.maximum_ * val, equation.minimum_ * val);
+  double mn = std::min(equation.maximum_ * val, equation.minimum_ * val);
   equation.maximum_ = mx;
   equation.minimum_ = mn;
   return equation;
 }
 
 int find_pivot[MAX_LENGTH];  // 全局公用，用来查询pos对应的元的编号
-int MAX_COST(1 << 17);
 int mine_count;
 class Matrix {
  private:
@@ -321,7 +318,6 @@ class Matrix {
   std::vector<std::vector<int> > contain_pivot_;  // 包含这个元的方程编号
   int solution_count_;                            // 探到的解计数
   int pivot_count_;                               // 有多少个pivot，用来分配元的编号
-  int cost_;                                      // 探测开销
   void set_up_matrix() {
     for (auto i : node_set_) {
       for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
@@ -355,13 +351,10 @@ class Matrix {
   }  // 建立增广矩阵
   void calculate_solution(int depth) {
     if (mine_count > unknown_mines) return;
-    ++cost_;
-    if (cost_ > MAX_COST) return;  // 开销过大，强制终止
     if (depth >= pivot_count_) {
       ++solution_count_;
       for (int i = 0; i < pivot_count_; ++i) {
-        ++cost_;
-        if (DoubleAbsolute(store_[i]) < EPSILON)
+        if (std::abs(store_[i]) < EPSILON)
           ++zero_count_[i];
         else
           ++one_count_[i];
@@ -381,12 +374,11 @@ class Matrix {
           if ((equation_[equation].value_ - equation_[equation].maximum_ > EPSILON) ||
               (equation_[equation].minimum_ - equation_[equation].value_ > EPSILON))
             return false;
-          if (DoubleAbsolute(equation_[equation].value_ - equation_[equation].maximum_) < EPSILON) {
+          if (std::abs(equation_[equation].value_ - equation_[equation].maximum_) < EPSILON) {
             for (auto enumerate_pivot : equation_[equation].pivot_) {
               int fst = (enumerate_pivot.first);
               double aim_coefficient = (enumerate_pivot.second);
-              ++cost_;
-              if ((verified_depth_[fst] != -1) || (fst == now) || (DoubleAbsolute(aim_coefficient) < EPSILON)) continue;
+              if ((verified_depth_[fst] != -1) || (fst == now) || (std::abs(aim_coefficient) < EPSILON)) continue;
               verified_depth_[fst] = depth;
               if (aim_coefficient > 0.0)
                 store_[fst] = 1.0;
@@ -394,12 +386,11 @@ class Matrix {
                 store_[fst] = 0.0;
             }
           }  // 最大值锁定
-          else if (DoubleAbsolute(equation_[equation].value_ - equation_[equation].minimum_) < EPSILON) {
+          else if (std::abs(equation_[equation].value_ - equation_[equation].minimum_) < EPSILON) {
             for (auto enumerate_pivot : equation_[equation].pivot_) {
               int fst = (enumerate_pivot.first);
               double aim_coefficient = (enumerate_pivot.second);
-              ++cost_;
-              if ((verified_depth_[fst] != -1) || (fst == now) || (DoubleAbsolute(aim_coefficient) < EPSILON)) continue;
+              if ((verified_depth_[fst] != -1) || (fst == now) || (std::abs(aim_coefficient) < EPSILON)) continue;
               verified_depth_[fst] = depth;
               if (aim_coefficient < 0.0)
                 store_[fst] = 1.0;
@@ -453,7 +444,7 @@ class Matrix {
         if (equation_[equation].main_pivot_ != -1) continue;  // 已经找到主元了
         auto it = equation_[equation].pivot_.find(pivot);
         if (it == equation_[equation].pivot_.end()) continue;  // 根本没有这个元
-        if (DoubleAbsolute(it->second) < EPSILON) {
+        if (std::abs(it->second) < EPSILON) {
           equation_[equation].pivot_.erase(it);
           continue;
         }
@@ -471,7 +462,7 @@ class Matrix {
         if (equation == main_equation_[pivot]) continue;  // 保留住自己
         auto it = equation_[equation].pivot_.find(pivot);
         if (it == equation_[equation].pivot_.end()) continue;  // 不必消元
-        if (DoubleAbsolute(it->second) < EPSILON) {
+        if (std::abs(it->second) < EPSILON) {
           equation_[equation].pivot_.erase(it);
           continue;
         }  // 不必消元
@@ -484,7 +475,7 @@ class Matrix {
       for (int pivot = 0; pivot < pivot_count_; ++pivot) {
         auto it = equation_[equation].pivot_.find(pivot);
         if (it == equation_[equation].pivot_.end()) continue;  // 根本没有这个元
-        if (DoubleAbsolute(it->second) < EPSILON) {
+        if (std::abs(it->second) < EPSILON) {
           equation_[equation].pivot_.erase(it);
           continue;
         }
@@ -510,7 +501,6 @@ class Matrix {
   void clear() {
     pivot_count_ = 0;
     solution_count_ = 0;
-    cost_ = 0;
     equation_.clear();
     main_equation_.clear();
     node_set_.clear();
@@ -531,7 +521,7 @@ class Matrix {
     return;
   }
   bool manage_singular_solution() {
-    if ((solution_count_ != 1) || (cost_ >= MAX_COST)) return false;
+    if (solution_count_ != 1) return false;
     for (auto i : node_set_) {
       for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
         int this_one = block_status[i].un_block_pos_[j];
@@ -546,7 +536,6 @@ class Matrix {
     return true;
   }
   bool manage_multiple_solution() {
-    if (cost_ >= MAX_COST) return false;
     bool is_find_possible_choice = false;
     for (auto i : node_set_) {
       for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
@@ -566,9 +555,9 @@ class Matrix {
     }
     return is_find_possible_choice;
   }
-  bool manage_multiple_solution_maximize() {
-    double maximum_possibility = -1.0;
-    int current_position, operation_type;
+  bool manage_multiple_solution_maximize(int &current_position,
+                                         int &operation_type, 
+                                         double &maximum_possibility) {
     bool is_find_possible_choice = false;
     for (auto i : node_set_) {
       for (int j = 0; j < block_status[i].un_block_cnt_; ++j) {
@@ -576,7 +565,7 @@ class Matrix {
         int temporary_zero_count = zero_count_[find_pivot[this_one]], temporary_one_count = one_count_[find_pivot[this_one]];
         int totalc = temporary_zero_count + temporary_one_count;
         if (!totalc) continue;
-        double possibility = DoubleMaximum((temporary_zero_count * 1.0 / totalc), (temporary_one_count * 1.0 / totalc));
+        double possibility = std::max((temporary_zero_count * 1.0 / totalc), (temporary_one_count * 1.0 / totalc));
         if (possibility - maximum_possibility > EPSILON) {
           maximum_possibility = possibility;
           current_position = this_one;
@@ -589,11 +578,14 @@ class Matrix {
       }
     }
     if (!is_find_possible_choice) return false;
-    PushIntoOperationQueue(current_position, operation_type);
     return true;
   }
  public:
-  bool analyze(std::vector<int> positions) {
+  bool analyze(std::vector<int> positions,
+               bool &recommend_solution, 
+               int &current_position, 
+               int &operation_type, 
+               double &maximum_possibility) {
     clear();
     for (auto i : positions) {
       add_block(i);
@@ -604,25 +596,21 @@ class Matrix {
     calculate_solution(0);
     if (manage_singular_solution()) return true;
     if (manage_multiple_solution()) return true;
+    recommend_solution = manage_multiple_solution_maximize(current_position, 
+                                                           operation_type, 
+                                                           maximum_possibility);
     return false;
-  }
-  bool guess(std::vector<int> positions) {
-    clear();
-    for (auto i : positions) {
-      add_block(i);
-    }
-    set_up_matrix();
-    gaussian_jordan();
-    mine_count = 0;
-    calculate_solution(0);
-    if (manage_singular_solution()) return true;
-    if (manage_multiple_solution_maximize()) return true;
-    return false;
-  } // 用最大概率猜测策略
+  } // 后三项涉及推荐
 } temporary_matrix;
 Matrix global_matrix;
 std::vector<int> global_vector;
-bool GaussianElimination(int S_x, int S_y, int T_x, int T_y, bool analyze = false) {
+bool GaussianElimination(int S_x, int S_y, int T_x, int T_y,
+                         bool &recommend_solution,          // 是否推荐成功 
+                         int &current_position,             // 推荐的位置
+                         int &operation_type,               // 推荐的操作类型
+                         double &maximum_possibility) {     // 推荐理由（最大概率）
+  recommend_solution = false;
+  maximum_possibility = -1.0;
   global_vector.clear();
   for (int i = S_x; i <= T_x; ++i) {
     for (int j = S_y; j <= T_y; ++j) {
@@ -631,12 +619,11 @@ bool GaussianElimination(int S_x, int S_y, int T_x, int T_y, bool analyze = fals
     }
   }
   if (global_vector.empty()) return false;
-  if (analyze) return global_matrix.analyze(global_vector);
-  return global_matrix.guess(global_vector);
+  return global_matrix.analyze(global_vector, recommend_solution, current_position, operation_type, maximum_possibility);
 } // 对(S_x, S_y)为左上角，(T_x, T_y)为右下角的矩阵进行消元
 
 void Randomize() {
-  for (int range = 3; range >= 0; --range) {
+  for (int range = 5; range >= 0; --range) {
     for (int i = 0; i < rows; ++i) {
       for (int j = 0; j < columns; ++j) {
         bool flag = true;
@@ -696,22 +683,43 @@ void Analyze(int current_position) {
     UpdatePosition(next_position);
     if (block_status[next_position].is_not_analyzable()) continue;
     // 只需要和已经打开的、不是雷的、还存在待定位置的点进行小型高斯消元
-    temporary_matrix.analyze({current_position, next_position});
+    bool tmp_a;
+    double tmp_b;
+    int tmp_c, tmp_d;
+    // 以上全是临时数据接口，不具备实际意义
+    temporary_matrix.analyze({current_position, next_position}, tmp_a, tmp_c, tmp_d, tmp_b);
   }
   return;
 }
-bool GlobalScan(int max_x_len, int max_y_len) {
+bool GlobalScan(int x_len, int y_len) {
   bool flag = false;
-  for (int i = 0; i < rows; ++i) {
-    for (int j = 0; j < columns; ++j) {
-      for (int x = i; x < i + max_x_len && x < rows; ++x) {
-        for (int y = j; y < j + max_y_len && y < columns; ++y) {
-          flag |= GaussianElimination(i, j, x, y, true);
+  bool global_recommend_solution = false;
+  double global_maximum_possibility = -1.0;
+  int global_operation_type;
+  int global_current_position;
+  for (int i = 0; i < rows; i += (x_len >> 1)) {
+    for (int j = 0; j < columns; j += (y_len >> 1)) {
+          bool recommend_solution = false;
+          double maximum_possibility = -1.0;
+          int operation_type;
+          int current_position;
+          int T_x = std::min(i + x_len - 1, rows - 1);
+          int T_y = std::min(j + y_len - 1, columns - 1);
+          flag |= GaussianElimination(i, j, T_x, T_y, recommend_solution, current_position, operation_type, maximum_possibility);
+          if (recommend_solution) {
+            global_recommend_solution = true;
+            if (maximum_possibility > global_maximum_possibility) {
+              global_maximum_possibility = maximum_possibility;
+              global_operation_type = operation_type;
+              global_current_position = current_position;
+            }
+          }
         }
-      }
-    }
   }
-  return flag;
+  if ((!flag) && (global_recommend_solution)) {
+    PushIntoOperationQueue(global_current_position, global_operation_type);
+  }
+  return flag | global_recommend_solution;
 }
 
 /**
@@ -732,8 +740,7 @@ void Decide() {
     int position_in_front = GetPositionInTheFront();
     if (position_in_front == -1) {
       // 全局扫描 + 全局Gaussian消元 + 随机
-      if (GlobalScan(6, 6)) continue;
-      if (GaussianElimination(0, 0, rows - 1, columns - 1)) continue;
+      if (GlobalScan(15, 15)) continue;
       Randomize();
     }
     else {
